@@ -14,7 +14,7 @@ contract b2mapph {
     //Debuging start
     address public lastPatient;
     uint public totalTestCount;
-    string public lastTest;
+    hdata public lastTest;
     // Debug Finish
     address[] public allDocs; //Lists all registerd Doc Ids
     address[] public allAdmins; //Lists all registerd Admin Ids
@@ -24,7 +24,12 @@ contract b2mapph {
     mapping(address => bool) isUser; // Sets the specified address to Patient.
     mapping(address => bool) isHIS; // Sets the specified address to HIS, Only SuperAdmin Can Change.
 
-    mapping(address => string[]) userTests; //All Tests mapped to Patient ID
+    struct hdata {
+        string ttype;
+        string data;
+        uint ttime;
+    }
+    mapping(address => hdata[]) userTests; //All Tests mapped to Patient ID
     mapping(address => mapping(address => bool)) sharedTests; // List of IDS The patient has Shared Data with.
     mapping(address => mapping(address => bool)) trustedHIS; // List of trusted HIS that can add results to Patient Account
 
@@ -39,6 +44,7 @@ contract b2mapph {
         _;
     }
     modifier adminCheck() {
+        //Checks if the user is an Admin.
         require(
             isAdmin[msg.sender] == true,
             "This Feature is only for admins."
@@ -46,6 +52,7 @@ contract b2mapph {
         _;
     }
     modifier HISCheck() {
+        //Checks if the user is a HIS.
         require(isHIS[msg.sender] == true, "This Feature is only for HIS.");
         _;
     }
@@ -57,7 +64,11 @@ contract b2mapph {
     event wrongCall(address indexed ke, bytes ki);
     event dataShared(address indexed patient, address indexed doc);
     event dataViewedByDoc(address indexed doc, uint kokhon);
-    event dataSharingTurnedOff(address doc, address patient, uint kokhon);
+    event dataSharingTurnedOff(
+        address indexed doc,
+        address indexed patient,
+        uint kokhon
+    );
 
     //First Function called by Patient after registration before they can upload test data.
     function registerPatient() public {
@@ -105,56 +116,69 @@ contract b2mapph {
     }
 
     //Function to add Test results. Only callable by Patient. The String will be processed on the front end.
-    function addTest(string memory _val) public patientCheck {
-        userTests[msg.sender].push(_val);
-        lastTest = _val;
+    function addTest(
+        string memory _ttype,
+        string memory _data,
+        uint _time
+    ) public patientCheck {
+        hdata memory nTest = hdata(_ttype, _data, _time);
+        userTests[msg.sender].push(nTest);
+        lastTest = nTest;
         totalTestCount++;
         emit newTest(msg.sender, block.timestamp);
     }
 
     // This function is called by the Hospital to add a patient Health record to Patients Array of results.
-    function HISaddTest(address patient, string memory _val) public HISCheck {
+    function HISaddTest(
+        address patient,
+        string memory _ttype,
+        string memory _data,
+        uint _time
+    ) public HISCheck {
         require(isUser[patient] == true, "Invalid Patient ID Provided");
         require(
             trustedHIS[patient][msg.sender] == true,
             "The Patient has not allowed you to post DATA"
         );
-        userTests[patient].push(_val);
-        lastTest = _val;
+        hdata memory nTest = hdata(_ttype, _data, _time);
+        userTests[patient].push(nTest);
+        userTests[patient].push(nTest);
+        lastTest = nTest;
         totalTestCount++;
         emit newTest(patient, block.timestamp);
     }
 
-    function seeResults(
+    // For Patient to see a single result using a result id.
+    function seeAResult(
         uint Tid
-    ) public view patientCheck returns (string memory) {
+    ) public view patientCheck returns (hdata memory) {
         return userTests[msg.sender][Tid];
     }
 
-    function seeAllResults()
-        public
-        view
-        patientCheck
-        returns (string[] memory)
-    {
+    // For Patient to call his own all records
+    function seeAllResults() public view patientCheck returns (hdata[] memory) {
         return userTests[msg.sender];
     }
 
+    // For Patient to see how many records he has in total.
     function toTalnumberOfResults() public view patientCheck returns (uint) {
         return userTests[msg.sender].length;
     }
 
+    // For Patient to share data with viewer, viewer id mus be inseted.
     function shareTest(address docid) public patientCheck {
         require(isDoc[docid] == true, "The provided id is not a Doctor.");
         sharedTests[msg.sender][docid] = true;
         emit dataShared(msg.sender, docid);
     }
 
+    // For Patient to allow a certain Source for posting on his behalf.
     function addTrustedHIS(address his) public patientCheck {
         require(isHIS[his] == true, "The provided id is not a Hospital.");
         trustedHIS[msg.sender][his] = true;
     }
 
+    // For Patient to remove a certain Source for posting on his behalf.
     function removeTrustedHIS(address his) public patientCheck {
         require(isHIS[his] == true, "The provided id is not a Hospital.");
         require(
@@ -164,18 +188,20 @@ contract b2mapph {
         trustedHIS[msg.sender][his] = false;
     }
 
+    // For Viewer to see patient record.
     function seePatientRecord(
         address patientId,
         uint testId
-    ) public docCheck returns (string memory) {
+    ) public docCheck returns (hdata memory) {
         require(
             sharedTests[patientId][msg.sender] == true,
             "Patient has not Shared."
         );
         emit dataViewedByDoc(msg.sender, block.timestamp);
-        return string(userTests[patientId][testId]);
+        return userTests[patientId][testId];
     }
 
+    // for patient to remove a viewer from allowed viewers;
     function removeDoc(address docid) public patientCheck {
         require(
             sharedTests[msg.sender][docid] == true,
@@ -185,6 +211,7 @@ contract b2mapph {
         emit dataSharingTurnedOff(docid, msg.sender, block.timestamp);
     }
 
+    //For Viewer to remove self from shared list of the patient.
     function removePatient(address patientId) public docCheck {
         require(
             sharedTests[patientId][msg.sender] == true,
@@ -194,6 +221,7 @@ contract b2mapph {
         emit dataSharingTurnedOff(msg.sender, patientId, block.timestamp);
     }
 
+    // For SuperAdmin to reset all status of a user to null.
     function resetUser(address id) public {
         require(
             msg.sender == superadmin,
@@ -208,6 +236,7 @@ contract b2mapph {
         }
     }
 
+    // If anyone /or any function calles a awrong function then its handled by fall back function.
     fallback() external {
         emit wrongCall(msg.sender, msg.data);
     }
