@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.6;
 
-contract b2mapp {
+contract b2mapph {
     address superadmin;
 
     //The Super admin is the Contract Deployer.
