@@ -18,22 +18,19 @@ contract b2mapph {
 
     // Debug Functions
 
-    function bulkdata(bhData[] memory data) public {
+    function bulkdata(bhData[] memory data) public adminCheck {
         for (uint i = 0; i < data.length; i++) {
             userTests[msg.sender].push(data[i]);
         }
     }
 
-    function bulk1PatientData(address patients, bhData[] memory data) public {
+    function bulk1PatientData(address patients, bhData[] memory data) public adminCheck {
         for (uint i = 0; i < data.length; i++) {
             userTests[patients].push(data[i]);
         }
     }
 
-    function bulkPatientData(
-        address[] memory patients,
-        bhData[] memory data
-    ) public {
+    function bulkPatientData(address[] memory patients, bhData[] memory data) public adminCheck {
         for (uint i = 0; i < patients.length; i++) {
             userTests[patients[i]].push(data[i]);
         }
@@ -48,7 +45,7 @@ contract b2mapph {
     mapping(address => bool) isUser; // Sets the specified address to Patient.
     mapping(address => bool) isHIS; // Sets the specified address to HIS, Only SuperAdmin Can Change.
 
-    //Blockchain Healtha Data Storage Format 
+    //Blockchain Healtha Data Storage Format
     struct bhData {
         string tName;
         string tValue;
@@ -107,10 +104,7 @@ contract b2mapph {
 
     // This function is called by SuperAdmin to set an ID to admin. (The Contract Deployer is the SuperAdmin).
     function addAdmin(address admin) public {
-        require(
-            msg.sender == superadmin,
-            "Only Super Admin can approve Admin Accounts"
-        );
+        require(msg.sender == superadmin,"Only Super Admin can approve Admin Accounts");
         require(isUser[admin] == false, "Patients cant be Admins!");
         require(isDoc[admin] == false, "Docs Cant be Patients");
         isAdmin[admin] = true;
@@ -129,10 +123,7 @@ contract b2mapph {
 
     //Function to add a Hospital. Only callable by Admin/SuperAdmin
     function addHIS(address HIS) public {
-        require(
-            msg.sender == superadmin,
-            "Only Super Admin can approve HIS Accounts"
-        );
+        require(msg.sender == superadmin,"Only Super Admin can approve HIS Accounts");
         require(isUser[HIS] == false, "Patients cant be HIS!");
         require(isDoc[HIS] == false, "Docs Cant be HIS");
         require(isAdmin[HIS] == false, "Admins cant be HIS!");
@@ -142,11 +133,7 @@ contract b2mapph {
     }
 
     //Function to add Test results. Only callable by Patient. The String will be processed on the front end.
-    function addTest(
-        string memory _tName,
-        string memory _data,
-        uint _time
-    ) public patientCheck {
+    function addTest(string memory _tName, string memory _data, uint _time) public patientCheck {
         bhData memory nTest = bhData(_tName, _data, _time);
         userTests[msg.sender].push(nTest);
         lastTest = nTest;
@@ -155,17 +142,9 @@ contract b2mapph {
     }
 
     // This function is called by the Hospital to add a patient Health record to Patients Array of results.
-    function HISaddTest(
-        address patient,
-        string memory _tName,
-        string memory _data,
-        uint _time
-    ) public HISCheck {
+    function HISaddTest(address patient,string memory _tName,string memory _data,uint _time) public HISCheck {
         require(isUser[patient] == true, "Invalid Patient ID Provided");
-        require(
-            trustedSource[patient][msg.sender] == true,
-            "The Patient has not allowed you to post DATA"
-        );
+        require(trustedSource[patient][msg.sender] == true,"The Patient has not allowed you to post DATA");
         bhData memory nTest = bhData(_tName, _data, _time);
         userTests[patient].push(nTest);
         userTests[patient].push(nTest);
@@ -175,14 +154,12 @@ contract b2mapph {
     }
 
     // For Patient to see a single result using a result id.
-    function seeAResult(
-        uint Tid
-    ) public view patientCheck returns (bhData memory) {
+    function seeAResult(uint Tid) public view patientCheck returns (bhData memory) {
         return userTests[msg.sender][Tid];
     }
 
     // For Patient to call his own all records
-    function seeAllResults() public view patientCheck returns (bhData[] memory) {
+    function seeAllResults()public view patientCheck returns (bhData[] memory){
         return userTests[msg.sender];
     }
 
@@ -190,19 +167,17 @@ contract b2mapph {
     function toTalnumberOfResults() public view patientCheck returns (uint) {
         return userTests[msg.sender].length;
     }
-    
+
     // For Patient to share data with viewer, viewer id mus be inseted.
     function addviewer(address docid) public patientCheck {
         require(isDoc[docid] == true, "The provided id is not a Doctor.");
         addViewer[msg.sender][docid] = true;
         emit dataShared(msg.sender, docid);
     }
-     // For Patient to remove a viewer from allowed viewers;
+
+    // For Patient to remove a viewer from allowed viewers;
     function removeViewer(address docid) public patientCheck {
-        require(
-            addViewer[msg.sender][docid] == true,
-            "Doc is not in your share list."
-        );
+        require(addViewer[msg.sender][docid] == true,"Doc is not in your share list.");
         addViewer[msg.sender][docid] = false;
         emit dataSharingTurnedOff(docid, msg.sender, block.timestamp);
     }
@@ -216,42 +191,27 @@ contract b2mapph {
     // For Patient to remove a certain Source for posting on his behalf.
     function removeTrustedSource(address his) public patientCheck {
         require(isHIS[his] == true, "The provided id is not a Hospital.");
-        require(
-            trustedSource[msg.sender][his] = true,
-            "The Provide HIS Id is not in your Trusted List"
-        );
+        require(trustedSource[msg.sender][his] = true,"The Provide HIS Id is not in your Trusted List");
         trustedSource[msg.sender][his] = false;
     }
 
     // For Viewer to see patient record.
-    function seePatientRecord(
-        address patientId,
-        uint testId
-    ) public docCheck returns (bhData memory) {
-        require(
-            addViewer[patientId][msg.sender] == true,
-            "Patient has not Shared."
-        );
+    function seePatientRecord(address patientId,uint testId) public docCheck returns (bhData memory) {
+        require(addViewer[patientId][msg.sender] == true,"Patient hasn`t Shared.");
         emit dataViewedByDoc(msg.sender, block.timestamp);
         return userTests[patientId][testId];
     }
 
     //For Viewer to remove self from shared list of the patient.
     function removePatient(address patientId) public docCheck {
-        require(
-            addViewer[patientId][msg.sender] == true,
-            "Patient has not shared data with you."
-        );
+        require(addViewer[patientId][msg.sender] == true,"Patient has not shared data with you.");
         addViewer[patientId][msg.sender] = false;
         emit dataSharingTurnedOff(msg.sender, patientId, block.timestamp);
     }
 
     // For SuperAdmin to reset all status of a user to null.
     function resetUser(address id) public {
-        require(
-            msg.sender == superadmin,
-            "Only Super Admin can Reset Accounts"
-        );
+        require(msg.sender == superadmin,"Only Super Admin can Reset Accounts");
         if (isAdmin[id] = true) {
             isAdmin[id] = false;
         } else if (isDoc[id] = true) {
